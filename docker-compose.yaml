@@ -1,8 +1,48 @@
-version: "3"
+version: "3.2"
+
+
 services:
-  app:
-    build: .
-    container_name: produtor
-    command: bash -c "uvicorn app.main:app --host=0.0.0.0 --port=8000 --reload"
+  rabbit_mq:
+    image: rabbitmq:3.8-rc-management
+    container_name: rabbit_mq
     ports:
-      - "8000:8000"
+        - '5672:5672'
+        - '15672:15672'
+    volumes:
+      - rabbit_mqdata:/usr/share/rabbitmq/data
+
+  producer:
+    build: producer
+    depends_on:
+        - rabbit_mq
+    environment:
+        AMQP_URL: 'amqp://rabbit_mq?connection_attempts=10&retry_delay=10'
+    volumes:
+      - ./producer:/usr/src/app/producer
+
+  consumer:
+    build: consumer
+    command: bash -c "prisma db push && python3 consumer.py"
+    depends_on:
+        - rabbit_mq
+        - db
+    environment:
+        AMQP_URL: 'amqp://rabbit_mq?connection_attempts=10&retry_delay=10'
+        DATABASE_URL: 'mysql://consumer:mysecretpassword@db:3306/consumer-db'
+    volumes:
+      - ./consumer:/usr/src/app/consumer
+    
+  db:
+    image: "mariadb:latest"
+    container_name: consumer-db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_USER: consumer
+      MYSQL_PASSWORD: mysecretpassword
+      MYSQL_ROOT_PASSWORD: mysecretpassword
+      MYSQL_DATABASE: consumer-db
+
+volumes:
+    rabbit_mqdata:
+      driver: local
