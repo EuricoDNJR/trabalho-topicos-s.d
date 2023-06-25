@@ -23,7 +23,6 @@ rds = RDSConnector()
 rds.connect()
 
 def callback(ch, method, properties, body):
-    time.sleep(2)
 
     print('acking it')
     chan.basic_ack(delivery_tag=method.delivery_tag)
